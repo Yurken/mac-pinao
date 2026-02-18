@@ -1,0 +1,39 @@
+# Swift
+.build/
+*.xcodeproj/
+.swiftpm/
+*.swiftsourceinfo
+
+# Xcode
+*.pbxproj
+*.xcworkspace/
+xcuserdata/
+*.xcuserdatad/
+*.xcscheme/
+*.plist
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+*.dSYM
+*.app
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Python
+*.pyc
+__pycache__/
+
+# Compiled
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+
+# Logs
+*.log

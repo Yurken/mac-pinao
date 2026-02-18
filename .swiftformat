@@ -1,0 +1,8 @@
+{
+  "indent": 4,
+  "indentCase": false,
+  "linebreaks": "lf",
+  "maxWidth": 100,
+  "elseOnSameLine": true,
+  "closingParenOnSameLine": true
+}
