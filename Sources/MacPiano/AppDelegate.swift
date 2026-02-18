@@ -18,17 +18,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window?.title = "Mac Piano - 键盘钢琴"
+        window?.title = "Mac Piano"
         window?.isReleasedWhenClosed = false
         window?.delegate = self
         window?.minSize = NSSize(width: 900, height: 320)
+        window?.backgroundColor = NSColor(red: 0.08, green: 0.10, blue: 0.14, alpha: 1.0)
         
         // 创建菜单栏
         setupMenuBar()
         
-        // 创建内容视图
+        // 创建内容视图（使用普通 NSView，避免视觉特效导致黑屏）
         let createdPianoView = PianoKeyboardView(frame: window!.contentView!.bounds, audioSynthesizer: audioSynthesizer)
         createdPianoView.autoresizingMask = [.width, .height]
+        createdPianoView.wantsLayer = true
+        createdPianoView.layer?.backgroundColor = NSColor(red: 0.07, green: 0.09, blue: 0.13, alpha: 1.0).cgColor
         window?.contentView?.addSubview(createdPianoView)
         pianoView = createdPianoView
         

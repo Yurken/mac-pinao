@@ -79,8 +79,8 @@ final class PianoKeyboardView: NSView {
     init(frame: NSRect, audioSynthesizer: AudioSynthesizer) {
         self.audioSynthesizer = audioSynthesizer
         super.init(frame: frame)
-        wantsLayer = true
-        layer?.backgroundColor = NSColor(red: 0.05, green: 0.06, blue: 0.09, alpha: 1.0).cgColor
+        wantsLayer = true // Used for performance/layer-backing
+        
         buildKeys()
     }
     
@@ -225,40 +225,60 @@ final class PianoKeyboardView: NSView {
     }
     
     private func drawBackground() {
-        let gradient = NSGradient(colors: [
-            NSColor(red: 0.10, green: 0.12, blue: 0.16, alpha: 1.0),
-            NSColor(red: 0.04, green: 0.05, blue: 0.08, alpha: 1.0)
-        ])
-        gradient?.draw(in: bounds, angle: -90)
+        NSColor(red: 0.07, green: 0.09, blue: 0.13, alpha: 1.0).setFill()
+        bounds.fill()
         
         let keyboardRect = keyboardBounds()
         let panelRect = keyboardRect.insetBy(dx: -16, dy: -14)
-        let panelPath = NSBezierPath(roundedRect: panelRect, xRadius: 14, yRadius: 14)
-        NSColor(red: 0.13, green: 0.15, blue: 0.20, alpha: 0.92).setFill()
-        panelPath.fill()
-        NSColor(red: 0.27, green: 0.32, blue: 0.42, alpha: 0.78).setStroke()
-        panelPath.lineWidth = 1
-        panelPath.stroke()
+        
+        // Use system style translucent background for the keyboard well
+        let path = NSBezierPath(roundedRect: panelRect, xRadius: 12, yRadius: 12)
+        NSColor(red: 0.15, green: 0.18, blue: 0.24, alpha: 0.95).setFill()
+        path.fill()
+        
+        NSColor(red: 0.28, green: 0.33, blue: 0.44, alpha: 1.0).setStroke()
+        path.lineWidth = 1
+        path.stroke()
     }
     
     private func drawHeader() {
-        let titleAttr: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 17, weight: .bold),
-            .foregroundColor: NSColor(red: 0.93, green: 0.95, blue: 0.99, alpha: 0.98)
-        ]
-        let titleRect = NSRect(x: 24, y: bounds.height - 42, width: bounds.width - 48, height: 20)
-        NSAttributedString(string: "Auto Piano Layout", attributes: titleAttr).draw(in: titleRect)
+        // Window title handles the main title now
         
+        // This text explains controls
         let helpAttr: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 11, weight: .medium),
-            .foregroundColor: NSColor(red: 0.74, green: 0.78, blue: 0.88, alpha: 0.95)
+            .foregroundColor: NSColor.secondaryLabelColor
         ]
-        let helpText = "White: 1-0 q-p a-l z-m   |   Black: hold Shift + same key"
-        let helpRect = NSRect(x: 24, y: bounds.height - 60, width: bounds.width - 48, height: 15)
+        let helpText = "Controls: White (1-0, Q-P, A-L, Z-M) | Black (Shift + Key)"
+        
+        // Calculate size to center it
+        let size = helpText.size(withAttributes: helpAttr)
+        
+        // Position it nicely above the keyboard, below the window controls
+        // Top of window is bounds.height
+        // Traffic lights are roughly top 22pts
+        // Let's put this text centered horizontally, and just above the keyboard
+        
+        let keyboardRect = keyboardBounds()
+        let yPosition = keyboardRect.maxY + 8
+        
+        let helpRect = NSRect(
+            x: (bounds.width - size.width) / 2,
+            y: yPosition,
+            width: size.width,
+            height: size.height
+        )
+        
         NSAttributedString(string: helpText, attributes: helpAttr).draw(in: helpRect)
     }
     
     private func drawWhiteKeys() {
+        // Shadow for white keys (subtle)
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.1)
+        shadow.shadowOffset = NSSize(width: 0, height: -1)
+        shadow.shadowBlurRadius = 2
+        
         for key in whiteKeys {
             guard var rect = keyFrames[key.id] else {
                 continue
@@ -267,26 +287,25 @@ final class PianoKeyboardView: NSView {
             let press = currentPress(for: key.id)
             rect.origin.y -= press * 4
             
-            let fillTop = blendedColor(
-                from: NSColor(red: 0.99, green: 0.98, blue: 0.95, alpha: 1.0),
-                to: NSColor(red: 0.88, green: 0.95, blue: 1.0, alpha: 1.0),
-                amount: press
-            )
-            let fillBottom = blendedColor(
-                from: NSColor(red: 0.88, green: 0.87, blue: 0.84, alpha: 1.0),
-                to: NSColor(red: 0.70, green: 0.84, blue: 1.0, alpha: 1.0),
-                amount: press
-            )
+            // White keys are generally light, but maybe slightly dimmed in dark mode app context
+            // Using system colors for a native feel, but keeping the "piano" aesthetic
+            let baseColor = NSColor.windowBackgroundColor.blended(withFraction: 0.8, of: .white) ?? .white
+            let pressedColor = NSColor.controlAccentColor.blended(withFraction: 0.4, of: baseColor) ?? baseColor
             
-            let path = NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4)
-            let fillGradient = NSGradient(starting: fillTop, ending: fillBottom)
-            fillGradient?.draw(in: path, angle: -90)
+            let finalFill = blendedColor(from: baseColor, to: pressedColor, amount: press)
             
-            blendedColor(
-                from: NSColor(red: 0.62, green: 0.64, blue: 0.70, alpha: 1.0),
-                to: NSColor(red: 0.35, green: 0.56, blue: 0.92, alpha: 1.0),
-                amount: press
-            ).setStroke()
+            let path = NSBezierPath(roundedRect: rect, xRadius: 5, yRadius: 5)
+            
+            NSGraphicsContext.saveGraphicsState()
+            if press < 0.1 {
+                shadow.set()
+            }
+            finalFill.setFill()
+            path.fill()
+            NSGraphicsContext.restoreGraphicsState()
+            
+            // Border
+            NSColor.separatorColor.setStroke()
             path.lineWidth = 1
             path.stroke()
             
@@ -295,6 +314,12 @@ final class PianoKeyboardView: NSView {
     }
     
     private func drawBlackKeys() {
+        // Shadow for black keys (more prominent)
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.3)
+        shadow.shadowOffset = NSSize(width: 0, height: -2)
+        shadow.shadowBlurRadius = 3
+
         for key in blackKeys {
             guard var rect = keyFrames[key.id] else {
                 continue
@@ -303,22 +328,23 @@ final class PianoKeyboardView: NSView {
             let press = currentPress(for: key.id)
             rect.origin.y -= press * 2.5
             
-            let top = blendedColor(
-                from: NSColor(red: 0.22, green: 0.24, blue: 0.30, alpha: 1.0),
-                to: NSColor(red: 0.25, green: 0.44, blue: 0.72, alpha: 1.0),
-                amount: press
-            )
-            let bottom = blendedColor(
-                from: NSColor(red: 0.06, green: 0.07, blue: 0.10, alpha: 1.0),
-                to: NSColor(red: 0.16, green: 0.29, blue: 0.52, alpha: 1.0),
-                amount: press
-            )
+            // Black keys: dark gray/black usually
+            let baseColor = NSColor(white: 0.15, alpha: 1.0)
+            let pressedColor = NSColor.controlAccentColor.blended(withFraction: 0.5, of: baseColor) ?? baseColor
             
-            let path = NSBezierPath(roundedRect: rect, xRadius: 3, yRadius: 3)
-            let gradient = NSGradient(starting: top, ending: bottom)
-            gradient?.draw(in: path, angle: -90)
+            let finalFill = blendedColor(from: baseColor, to: pressedColor, amount: press)
             
-            NSColor(red: 0.02, green: 0.03, blue: 0.06, alpha: 0.96).setStroke()
+            let path = NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4)
+            
+            NSGraphicsContext.saveGraphicsState()
+            if press < 0.1 {
+                shadow.set()
+            }
+            finalFill.setFill()
+            path.fill()
+            NSGraphicsContext.restoreGraphicsState()
+            
+            NSColor(white: 0.0, alpha: 0.5).setStroke()
             path.lineWidth = 1
             path.stroke()
             
@@ -329,14 +355,15 @@ final class PianoKeyboardView: NSView {
     private func drawWhiteKeyText(for key: PianoKey, in rect: NSRect) {
         let noteAttr: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 10, weight: .semibold),
-            .foregroundColor: NSColor(red: 0.18, green: 0.22, blue: 0.30, alpha: 0.92)
+            .foregroundColor: NSColor.secondaryLabelColor
         ]
         let noteRect = NSRect(x: rect.minX + 3, y: rect.maxY - 20, width: rect.width - 6, height: 12)
         NSAttributedString(string: key.noteLabel, attributes: noteAttr).draw(in: noteRect)
         
+        // Ensure good contrast on white keys
         let keyAttr: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedSystemFont(ofSize: 11, weight: .bold),
-            .foregroundColor: NSColor(red: 0.34, green: 0.39, blue: 0.52, alpha: 0.96)
+            .foregroundColor: NSColor.labelColor.withAlphaComponent(0.8)
         ]
         let keyRect = NSRect(x: rect.minX + 3, y: rect.minY + 8, width: rect.width - 6, height: 12)
         NSAttributedString(string: key.keyboardLabel, attributes: keyAttr).draw(in: keyRect)
@@ -345,25 +372,33 @@ final class PianoKeyboardView: NSView {
     private func drawBlackKeyText(for key: PianoKey, in rect: NSRect) {
         let noteAttr: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 8, weight: .semibold),
-            .foregroundColor: NSColor(red: 0.90, green: 0.93, blue: 0.99, alpha: 0.9)
+            .foregroundColor: NSColor(white: 0.7, alpha: 1.0)
         ]
         let noteRect = NSRect(x: rect.minX + 2, y: rect.maxY - 16, width: rect.width - 4, height: 10)
         NSAttributedString(string: key.noteLabel, attributes: noteAttr).draw(in: noteRect)
         
         let keyAttr: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedSystemFont(ofSize: 10, weight: .bold),
-            .foregroundColor: NSColor(red: 0.88, green: 0.92, blue: 1.0, alpha: 0.98)
+            .foregroundColor: NSColor(white: 0.9, alpha: 1.0)
         ]
         let keyRect = NSRect(x: rect.minX + 2, y: rect.minY + 6, width: rect.width - 4, height: 10)
         NSAttributedString(string: key.keyboardLabel, attributes: keyAttr).draw(in: keyRect)
     }
     
     private func keyboardBounds() -> NSRect {
-        NSRect(
-            x: 22,
-            y: 20,
-            width: bounds.width - 44,
-            height: max(160, bounds.height - 96)
+        // Adjust for full size content view - leave space for traffic lights and header
+        // Traffic lights are at top-left.
+        // We want the keyboard to be centered horizontally and vertically in the remaining space
+        
+        let topPadding: CGFloat = 60 // Space for window controls & header
+        let bottomPadding: CGFloat = 20
+        let sidePadding: CGFloat = 22
+        
+        return NSRect(
+            x: sidePadding,
+            y: bottomPadding,
+            width: bounds.width - (sidePadding * 2),
+            height: max(160, bounds.height - (topPadding + bottomPadding))
         )
     }
     
@@ -393,8 +428,8 @@ final class PianoKeyboardView: NSView {
             guard let leftRect = keyFrames[whiteKeys[key.whiteIndex].id] else {
                 continue
             }
-            
-            let x = leftRect.maxX - blackWidth * 0.42
+            // Center black key between white keys
+            let x = leftRect.maxX - (blackWidth / 2) - (spacing / 2)
             let y = keyboardRect.maxY - blackHeight
             keyFrames[key.id] = NSRect(x: x, y: y, width: blackWidth, height: blackHeight)
         }
